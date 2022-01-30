@@ -9,7 +9,7 @@ import (
 	"image"
 	"math"
 
-	"github.com/golang/freetype/raster"
+	"github.com/unidoc/freetype/raster"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )
@@ -342,7 +342,17 @@ func (a *face) GlyphBounds(r rune) (bounds fixed.Rectangle26_6, advance fixed.In
 }
 
 func (a *face) GlyphAdvance(r rune) (advance fixed.Int26_6, ok bool) {
-	if err := a.glyphBuf.Load(a.f, a.scale, a.index(r), a.hinting); err != nil {
+	idx := a.index(r)
+	if len(a.f.cmGlyphIDArray) > 0 {
+		for i := 0; i < len(a.f.cmGlyphIDArray)-1; i++ {
+			if uint8(idx) == a.f.cmGlyphIDArray[i] {
+				idx = a.index(rune(i))
+				break
+			}
+		}
+	}
+
+	if err := a.glyphBuf.Load(a.f, a.scale, idx, a.hinting); err != nil {
 		return 0, false
 	}
 	return a.glyphBuf.AdvanceWidth, true

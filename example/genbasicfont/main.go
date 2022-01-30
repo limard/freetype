@@ -3,7 +3,9 @@
 // FreeType License or the GNU General Public License version 2 (or
 // any later version), both of which can be found in the LICENSE file.
 
+//go:build example
 // +build example
+
 //
 // This build tag means that "go install github.com/golang/freetype/..."
 // doesn't install this example program. Use "go run main.go" to run it or "go
@@ -26,7 +28,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/golang/freetype/truetype"
+	"github.com/unidoc/freetype/truetype"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )
