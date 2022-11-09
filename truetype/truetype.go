@@ -19,6 +19,7 @@ package truetype // import "github.com/golang/freetype/truetype"
 
 import (
 	"fmt"
+	"unicode/utf16"
 
 	"golang.org/x/image/math/fixed"
 )
@@ -166,6 +167,43 @@ func parseSubtables(table []byte, name string, offset, size int, pred func([]byt
 		return 0, 0, UnsupportedError(name + " encoding")
 	}
 	return bestOffset, bestPID, nil
+}
+
+func parseSubtables2(table []byte, name string, offset, size int, pred func([]byte) bool, cb func(offset int, pid uint32)) (retErr error) {
+	if len(table) < 4 {
+		return FormatError(name + " too short")
+	}
+	nSubtables := int(u16(table, 2))
+	if len(table) < size*nSubtables+offset {
+		return FormatError(name + " too short")
+	}
+	bestScore := -1
+	for i := 0; i < nSubtables; i, offset = i+1, offset+size {
+		if pred != nil && !pred(table[offset:]) {
+			continue
+		}
+		// We read the 16-bit Platform ID and 16-bit Platform Specific ID as a single uint32.
+		// All values are big-endian.
+		pidPsid := u32(table, offset)
+		// We prefer the Unicode cmap encoding. Failing to find that, we fall
+		// back onto the Microsoft cmap encoding.
+		// And we prefer full/UCS4 encoding over BMP/UCS2. So the priority goes:
+		//    unicodeEncodingFull > macintoshSimpleEncoding > microsoftUCS4Encoding > unicodeEncodingBMPOnly > macintoshSimpleEncoding > microsoftUCS2Encoding > microsoftSymbolEncoding
+		// It is in accord with the Psid part.
+		if pidPsid == unicodeEncodingBMPOnly || pidPsid == unicodeEncodingFull {
+			cb(offset, pidPsid>>16)
+		} else if pidPsid == macintoshSimpleEncoding {
+			cb(offset, pidPsid>>16)
+		} else if pidPsid == microsoftSymbolEncoding {
+			cb(offset, pidPsid>>16)
+		} else if pidPsid == microsoftUCS2Encoding || pidPsid == microsoftUCS4Encoding {
+			cb(offset, pidPsid>>16)
+		}
+	}
+	if bestScore < 0 {
+		return UnsupportedError(name + " encoding")
+	}
+	return nil
 }
 
 const (
@@ -506,6 +544,40 @@ func (f *Font) Name(id NameID) string {
 		}
 	}
 	return string(dst)
+}
+
+func byteToUint16(b []byte) (v []uint16) {
+	v = make([]uint16, len(b)/2)
+	for i := range v {
+		v[i] = uint16(b[i*2])<<8 | uint16(b[i*2+1])
+	}
+	return
+}
+
+func (f *Font) Names(id NameID) (names []string) {
+	parseSubtables2(f.name, "name", 6, 12, func(b []byte) bool {
+		return NameID(u16(b, 6)) == id
+	}, func(x int, platformID uint32) {
+		offset, length := u16(f.name, 4)+u16(f.name, x+10), u16(f.name, x+8)
+		// Return the ASCII value of the encoded string.
+		// The string is encoded as UTF-16 on non-Apple platformIDs; Apple is platformID 1.
+		src := f.name[offset : offset+length]
+		var dst []byte
+		if platformID != 1 { // UTF-16.
+			if len(src)&1 != 0 {
+				return
+			}
+			names = append(names, string(utf16.Decode(byteToUint16(src))))
+		} else { // ASCII.
+			dst = make([]byte, len(src))
+			for i, c := range src {
+				dst[i] = printable(uint16(c))
+			}
+			names = append(names, string(dst))
+		}
+		return
+	})
+	return names
 }
 
 // HasShortCmap returns true if font use simple encoding.
