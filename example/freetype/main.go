@@ -25,7 +25,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/unidoc/freetype"
+	"github.com/limard/freetype"
 	"golang.org/x/image/font"
 )
 

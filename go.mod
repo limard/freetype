@@ -1,4 +1,4 @@
-module github.com/unidoc/freetype
+module github.com/limard/freetype
 
 go 1.14
 

@@ -29,7 +29,7 @@ import (
 	"math"
 	"os"
 
-	"github.com/unidoc/freetype/raster"
+	"github.com/limard/freetype/raster"
 	"golang.org/x/image/math/fixed"
 )
 
