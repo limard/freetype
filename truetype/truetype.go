@@ -169,7 +169,7 @@ func parseSubtables(table []byte, name string, offset, size int, pred func([]byt
 	return bestOffset, bestPID, nil
 }
 
-func parseSubtables2(table []byte, name string, offset, size int, pred func([]byte) bool, cb func(offset int, pid uint32)) (retErr error) {
+func parseSubtablesCB(table []byte, name string, offset, size int, pred func([]byte) bool, cb func(offset int, pid uint32)) (retErr error) {
 	if len(table) < 4 {
 		return FormatError(name + " too short")
 	}
@@ -555,25 +555,37 @@ func byteToUint16(b []byte) (v []uint16) {
 }
 
 func (f *Font) Names(id NameID) (names []string) {
-	parseSubtables2(f.name, "name", 6, 12, func(b []byte) bool {
+	parseSubtablesCB(f.name, "name", 6, 12, func(b []byte) bool {
 		return NameID(u16(b, 6)) == id
 	}, func(x int, platformID uint32) {
 		offset, length := u16(f.name, 4)+u16(f.name, x+10), u16(f.name, x+8)
 		// Return the ASCII value of the encoded string.
 		// The string is encoded as UTF-16 on non-Apple platformIDs; Apple is platformID 1.
 		src := f.name[offset : offset+length]
-		var dst []byte
+		var name string
 		if platformID != 1 { // UTF-16.
 			if len(src)&1 != 0 {
 				return
 			}
-			names = append(names, string(utf16.Decode(byteToUint16(src))))
+			name = string(utf16.Decode(byteToUint16(src)))
 		} else { // ASCII.
-			dst = make([]byte, len(src))
+			dst := make([]byte, len(src))
 			for i, c := range src {
 				dst[i] = printable(uint16(c))
 			}
-			names = append(names, string(dst))
+			name = string(dst)
+
+		}
+
+		exist := false
+		for _, v := range names {
+			if v == name {
+				exist = true
+				break
+			}
+		}
+		if !exist {
+			names = append(names, name)
 		}
 		return
 	})
